@@ -10,6 +10,7 @@
 #   --port <port>     port `dsh web` listens on (default 3180)
 #   --mount <path>    Tailscale serve path prefix (default /dsh)
 #   --host <name>     Tailscale DNS name; auto-detected from `tailscale status` when omitted
+#   --url             print the listening service's launch URL, restarting nothing
 #   --no-pull         restart the service without updating the checkout
 #   --detach          re-exec detached, print one line, and return at once
 #   --dry-run         report every planned action without changing anything
@@ -48,6 +49,7 @@ SERVICE_PID=""
 URL=""
 DO_PULL=true
 DETACH=false
+SHOW_URL=false
 DRY_RUN=false
 ASSUME_YES=false
 RESTART=false
@@ -226,6 +228,47 @@ fetch_with_retry() {
     attempt=$((attempt + 1))
   done
   return 1
+}
+
+# Print the launch URL of the service already listening, restarting nothing.
+# A restart mints a new token and invalidates the URL another device holds, so
+# answering "what is the URL" must never restart the service.
+show_current_url() {
+  local pids pid log url
+  pids="$(listening_pids)"
+  if [[ -z "$pids" ]]; then
+    say "no service is listening on port $PORT"
+    return 4
+  fi
+  for pid in $pids; do
+    say "  listener pid=$pid"
+    # Read the log through the process's own stdout/stderr descriptors instead
+    # of guessing a filename, so this also resolves a service another tool
+    # started and this script never saw.
+    log="$(lsof -p "$pid" -a -d 1,2 -Fn 2>/dev/null \
+      | sed -n 's|^n\(/.*\)$|\1|p' | grep -v '^/dev/' | head -1)"
+    if [[ -z "$log" ]]; then
+      say "  pid $pid writes no regular file this script can read"
+      continue
+    fi
+    say "  service log=$log"
+    url="$(launch_url "$log")"
+    if [[ -n "$url" ]]; then
+      say "URL $url"
+      return 0
+    fi
+    say "  no 'dsh web:' line in that log"
+  done
+  if [[ -f "$STATE_FILE" ]]; then
+    url="$(sed -n 's/.*"url": "\(.*\)".*/\1/p' "$STATE_FILE" | head -1)"
+    if [[ -n "$url" ]]; then
+      say "  falling back to the last recorded state; confirm it still answers"
+      say "URL $url"
+      return 0
+    fi
+  fi
+  say "no launch URL found; read the 'dsh web:' line from the service log"
+  return 4
 }
 
 # ---------------------------------------------------------------------------
@@ -458,6 +501,7 @@ parse_args() {
       --port)    [[ $# -ge 2 ]] || die 2 "--port needs a value"; PORT="$2"; shift 2 ;;
       --mount)   [[ $# -ge 2 ]] || die 2 "--mount needs a value"; MOUNT="$2"; shift 2 ;;
       --host)    [[ $# -ge 2 ]] || die 2 "--host needs a value"; TS_HOST="$2"; shift 2 ;;
+      --url)     SHOW_URL=true; shift ;;
       --no-pull) DO_PULL=false; shift ;;
       --detach)  DETACH=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
@@ -477,6 +521,17 @@ parse_args() {
 }
 
 parse_args "$@"
+
+# The read-only query answers for whatever is listening right now, so it runs
+# before any state mutation and controls no service.
+if [[ "$SHOW_URL" == true ]]; then
+  mkdir -p "$LOG_DIR"
+  LOG_FILE="$LOG_DIR/url-port$PORT-$(date -u +%Y%m%d-%H%M%S).log"
+  : > "$LOG_FILE"
+  say "START $SCRIPT_NAME --url port=$PORT"
+  show_current_url || exit $?
+  exit 0
+fi
 
 if [[ "$RESTART" == true ]]; then
   rm -f "$STATE_FILE"

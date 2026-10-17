@@ -24,10 +24,21 @@ Quote the `URL <launch url>` line verbatim. It carries the process credential th
 
 If that line reports the URL as unavailable, the service is running but its launch URL could not be read from the log. Report the service log path the script named instead of assembling a URL from the mount root: a token-less URL always answers 401.
 
+## Answering "what is the URL?"
+
+When the user only wants the link, run `--url` and never the full update:
+
+```sh
+.agents/skills/update-dsh-master/scripts/update-dsh-master.sh --url
+```
+
+A restart mints a new launch token, so a full update invalidates the URL a phone or another browser already holds, and a device that has not yet exchanged its token cannot recover from that on its own. `--url` reads the listening service's own log through its file descriptors and changes nothing. The signed session cookie derives from a persistent key, so a device that has exchanged a token once keeps working across restarts for the cookie's 30-day lifetime.
+
 ## Options
 
 | Flag | Effect |
 |---|---|
+| `--url` | print the listening service's launch URL; restarts nothing |
 | `--port <port>` | port `dsh web` listens on (default 3180) |
 | `--mount <path>` | Tailscale serve path prefix (default `/dsh`) |
 | `--host <name>` | Tailscale DNS name; auto-detected when omitted |
