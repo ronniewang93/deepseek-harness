@@ -1,0 +1,35 @@
+/* Ambient balance readout in the composer dock: a compact control beside the
+   statistics pills, whose tooltip carries the per-currency detail while the
+   button refreshes on click. */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 1px 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  white-space: nowrap;
+}
+
+button.root {
+  cursor: pointer;
+}
+
+button.root:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.warning {
+  color: var(--dsw-alias-state-error-primary, #d54941);
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-deepseek-balance/README.md
+/:
+  en: fe38cc363265a5e1
+  zh: f6979b1b3eef6ef0
+/deepseek-ai-dsh-client-ui-deepseek-balance:
+  en: 5d66021f00bb9dbc
+  zh: 3d9c3c7b6ce5b0f0
+/deepseek-ai-dsh-client-ui-deepseek-balance/summary:
+  en: 0af3ee3dffe20a87
+  zh: 9e19e0b73fb2c588
+/deepseek-ai-dsh-client-ui-deepseek-balance/table-of-contents:
+  en: 9be40445baed505c
+  zh: 36057db7ea79fbb4
+/deepseek-ai-dsh-client-ui-deepseek-balance/use-this-package:
+  en: 393ce8a6d7e0bb77
+  zh: 820dca677110ca5b
+/deepseek-ai-dsh-client-ui-deepseek-balance/use-this-package/what-the-chip-shows:
+  en: 6cb20a75aa832a15
+  zh: c48bb6577f4ca867
+/deepseek-ai-dsh-client-ui-deepseek-balance/use-this-package/placement:
+  en: 35199d097a91bd8e
+  zh: 7b3fee31c3b337a3
+/deepseek-ai-dsh-client-ui-deepseek-balance/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-client-ui-deepseek-balance/understand-the-implementation/design-concept:
+  en: a08125fc6e64db9c
+  zh: d62636cdf892e9e9
+/deepseek-ai-dsh-client-ui-deepseek-balance/understand-the-implementation/source-map:
+  en: 316d4ce83e18f762
+  zh: c6e3c4d943257eac
+/deepseek-ai-dsh-client-ui-deepseek-balance/known-limitations-and-deferred-work:
+  en: 959cb47d3128e27d
+  zh: 1de36ffaa075443c
+/deepseek-ai-dsh-client-ui-deepseek-balance/dev-note:
+  en: 5de1d6304e00c58f
+  zh: 8d8225361cfa29e5

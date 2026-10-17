@@ -17,6 +17,7 @@ import pluginManagerRemote from '@deepseek-ai/dsh-plugin-manager/remote'
 import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
 import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
+import deepseekBalanceRemote from '@deepseek-ai/dsh-host-deepseek-balance/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import permissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
 import sessionFeedbackRemote from '@deepseek-ai/dsh-command-feedback/remote'
@@ -46,6 +47,7 @@ export type {
   MarketQuery, MarketSearchResult, MarketSort,
 } from '@deepseek-ai/dsh-plugin-market/types'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
+export type { DeepSeekBalanceSnapshot } from '@deepseek-ai/dsh-host-deepseek-balance/types'
 export type {} from '@deepseek-ai/dsh-agent-preset-registry/remote'
 export type {} from '@deepseek-ai/dsh-user-questions/remote'
 export type {} from '@deepseek-ai/dsh-commands/remote'
@@ -56,6 +58,7 @@ export type {} from '@deepseek-ai/dsh-schedule/remote'
 export type {} from '@deepseek-ai/dsh-office-to-pdf/remote'
 export type {} from '@deepseek-ai/dsh-llm/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
+export type {} from '@deepseek-ai/dsh-host-deepseek-balance/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
 export type {} from '@deepseek-ai/dsh-permission-presets/remote'
 export type {} from '@deepseek-ai/dsh-command-feedback/remote'
@@ -188,7 +191,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     for (const contribution of [
       productAnalyticsRemote, agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote,
       goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
-      pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginRegistryProbeRemote,
+      pluginInventoryRemote, deepseekBalanceRemote, pluginManagerRemote, pluginMarketRemote, pluginRegistryProbeRemote,
       messageFeedbackRemote, sessionFeedbackRemote,
       fileUploadsRemote, sessionReferencesRemote,
       permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,

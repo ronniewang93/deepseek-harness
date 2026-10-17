@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/host/deepseek-balance/README.md
+/:
+  en: c14f36582d39c4bb
+  zh: e09b21b8ea9e13c1
+/deepseek-ai-dsh-host-deepseek-balance:
+  en: 911db696107f416f
+  zh: 161183b1a7621986
+/deepseek-ai-dsh-host-deepseek-balance/summary:
+  en: 64af9113b78b2125
+  zh: 0a182bac71b6f867
+/deepseek-ai-dsh-host-deepseek-balance/table-of-contents:
+  en: 9be40445baed505c
+  zh: 36057db7ea79fbb4
+/deepseek-ai-dsh-host-deepseek-balance/use-this-package:
+  en: 3b19a29345ed55dc
+  zh: ab3859a7b6111b24
+/deepseek-ai-dsh-host-deepseek-balance/use-this-package/reading-a-snapshot:
+  en: 7843137b3cd56d4c
+  zh: cd360a0ff917110d
+/deepseek-ai-dsh-host-deepseek-balance/use-this-package/failure-reasons:
+  en: 531dd3a0abf8f7e8
+  zh: 6b6409ff64fa242d
+/deepseek-ai-dsh-host-deepseek-balance/use-this-package/upstream-selection:
+  en: aadd8988c39ab77f
+  zh: 955e9c6fe1fe854a
+/deepseek-ai-dsh-host-deepseek-balance/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-host-deepseek-balance/understand-the-implementation/design-concept:
+  en: 694eb553f00542c6
+  zh: 809abcdd500cd979
+/deepseek-ai-dsh-host-deepseek-balance/understand-the-implementation/source-map:
+  en: cdff26efe633ebb2
+  zh: 85fe5584bf96e5da
+/deepseek-ai-dsh-host-deepseek-balance/known-limitations-and-deferred-work:
+  en: e45198f015fbbb54
+  zh: a6d5cd3d2bdebd57
+/deepseek-ai-dsh-host-deepseek-balance/dev-note:
+  en: 5de1d6304e00c58f
+  zh: 8d8225361cfa29e5
