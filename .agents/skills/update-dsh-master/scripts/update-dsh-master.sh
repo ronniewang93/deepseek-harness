@@ -247,6 +247,20 @@ fetch_with_retry() {
   return 1
 }
 
+# Report the outcome recorded by the most recent full run, so a caller who
+# triggered a restart can confirm it finished without opening the log.
+report_last_run() {
+  local status updated
+  if [[ ! -f "$STATE_FILE" ]]; then
+    return 0
+  fi
+  status="$(sed -n 's/.*"status": "\([^"]*\)".*/\1/p' "$STATE_FILE" | head -1)"
+  updated="$(sed -n 's/.*"updatedAt": "\([^"]*\)".*/\1/p' "$STATE_FILE" | head -1)"
+  if [[ -n "$status" ]]; then
+    say "LAST run=$status at ${updated:-unknown} (state: $STATE_FILE)"
+  fi
+}
+
 # Print the launch URL of the service already listening, restarting nothing.
 # A restart mints a new token and invalidates the URL another device holds, so
 # answering "what is the URL" must never restart the service.
@@ -272,15 +286,17 @@ show_current_url() {
     url="$(launch_url "$log")"
     if [[ -n "$url" ]]; then
       say "URL $url"
+      report_last_run
       return 0
     fi
     say "  no 'dsh web:' line in that log"
   done
   if [[ -f "$STATE_FILE" ]]; then
-    url="$(sed -n 's/.*"url": "\(.*\)".*/\1/p' "$STATE_FILE" | head -1)"
+    url="$(sed -n 's/.*"url": "\([^"]*\)".*/\1/p' "$STATE_FILE" | head -1)"
     if [[ -n "$url" ]]; then
       say "  falling back to the last recorded state; confirm it still answers"
       say "URL $url"
+      report_last_run
       return 0
     fi
   fi

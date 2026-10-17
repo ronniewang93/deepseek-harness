@@ -30,10 +30,21 @@ export function apply(ctx) {
     handler: () => {
       const child = spawn(SCRIPT, ['--detach'], { detached: true, stdio: 'ignore' })
       child.unref()
+      // Multiline on purpose: the chat row renders single-line text as a
+      // summary it truncates with `nowrap` and cannot expand, while text
+      // carrying a newline becomes a disclosure the user can open. The first
+      // line stays short so the collapsed summary survives that truncation.
       return {
         kind: 'success',
-        text: `dsh web restart scheduled (pid ${String(child.pid ?? 'unknown')}). `
-          + 'Progress goes to ~/.dsh/update-dsh-master/logs/; reload this page once it reports ready.',
+        text: [
+          `Restart scheduled (pid ${String(child.pid ?? 'unknown')})`,
+          '',
+          'Merges origin/master, pushes to fork/local/dsh-tooling, then restarts this service.',
+          'It takes about a minute, and this page disconnects when the restart begins.',
+          '',
+          'Progress: ~/.dsh/update-dsh-master/logs/',
+          'New link when it finishes:  /update-dsh-master --url',
+        ].join('\n'),
       }
     },
   }), 'update-dsh-master command')

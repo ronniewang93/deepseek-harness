@@ -38,6 +38,14 @@ When the user only wants the link, run `--url` and never the full update:
 
 A restart mints a new launch token, so a full update invalidates the URL a phone or another browser already holds, and a device that has not yet exchanged its token cannot recover from that on its own. `--url` reads the listening service's own log through its file descriptors and changes nothing. The signed session cookie derives from a persistent key, so a device that has exchanged a token once keeps working across restarts for the cookie's 30-day lifetime.
 
+It also prints `LAST run=<status> at <time>`, read from the most recent full run's state, which is how you confirm a triggered restart finished without opening the log.
+
+## Command versus skill
+
+When the command plugin is loaded, `/update-dsh-master` runs the command rather than this skill. The command schedules the same script detached and settles immediately, so it can report only that the restart was scheduled — the Host running it is usually the service being replaced, and nothing can update that row afterwards. Read the outcome back with `--url`, whose `LAST run=` line states how the run ended.
+
+This skill covers the cases the command cannot: a Host that has not reloaded its profile since the plugin was mounted, or a user who wants the run's actual output and URL in the conversation.
+
 ## Options
 
 | Flag | Effect |
