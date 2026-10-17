@@ -1,31 +1,14 @@
 #!/usr/bin/env bash
 #
-# update-dsh-master.sh — update this checkout's master, restart the `dsh web`
-# service that serves it, and report the Tailscale URL the service is reachable at.
-#
-# USAGE
-#   update-dsh-master.sh [options]
-#
-# OPTIONS
-#   --port <port>     port `dsh web` listens on (default 3180)
-#   --mount <path>    Tailscale serve path prefix (default /dsh)
-#   --host <name>     Tailscale DNS name; auto-detected from `tailscale status` when omitted
-#   --url             print the listening service's launch URL, restarting nothing
-#   --no-pull         restart the service without updating the checkout
-#   --detach          re-exec detached, print one line, and return at once
-#   --dry-run         report every planned action without changing anything
-#   --restart         clear the state file and start over
-#   --yes, -y         skip the confirmation prompt
-#   -h, --help        show this help
+# update-dsh-master.sh — merge the newest official master into this checkout,
+# push the merged result to a personal fork, and restart the `dsh web` service
+# that serves it. `--help` prints the options, exit codes, and log locations.
 #
 # LOG     ${DSH_HOME:-$HOME/.dsh}/update-dsh-master/logs/<name>-<YYYYMMDD-HHMMSS>.log
 # STATE   ${DSH_HOME:-$HOME/.dsh}/update-dsh-master/state/update-dsh-master.state.json
 #
-# EXIT CODES
-#   0  the service is updated, listening, and verified through the Tailscale path
-#   2  invalid arguments or a missing precondition
-#   3  the checkout could not be updated on master
-#   4  the service did not become ready at the requested port
+# Uncommitted changes do not block a run: git refuses a merge that would
+# overwrite them, and only committed work reaches the fork.
 #
 # The Tailscale serve mapping is durable configuration and is never rewritten
 # here; a missing or misrouted mapping is reported, not repaired.
@@ -48,6 +31,9 @@ SERVICE_LOG=""
 SERVICE_PID=""
 URL=""
 DO_PULL=true
+DO_PUSH=true
+PUSH_REMOTE="fork"
+PUSH_BRANCH="local/dsh-tooling"
 DETACH=false
 SHOW_URL=false
 DRY_RUN=false
@@ -56,7 +42,7 @@ RESTART=false
 
 LOG_FILE=""
 STEP=0
-TOTAL_STEPS=7
+TOTAL_STEPS=8
 OK_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
@@ -144,8 +130,39 @@ JSON
 # helpers
 # ---------------------------------------------------------------------------
 
-# Print the header comment block as usage.
-usage() { sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'; }
+# Print the complete option reference, step list, and exit codes.
+usage() {
+  cat <<'USAGE_TEXT'
+update-dsh-master.sh — merge the newest official master into this checkout,
+push the merged result to a personal fork, and restart the `dsh web` service
+that serves it.
+
+USAGE
+  update-dsh-master.sh [options]
+
+OPTIONS
+  --port <port>        port `dsh web` listens on (default 3180)
+  --mount <path>       Tailscale serve path prefix (default /dsh)
+  --host <name>        Tailscale DNS name; auto-detected from `tailscale status` when omitted
+  --push-remote <r>    git remote that receives the merged master (default fork)
+  --push-branch <b>    branch on that remote (default local/dsh-tooling)
+  --no-push            merge without pushing to the fork
+  --url                print the listening service's launch URL, restarting nothing
+  --no-pull            restart the service without merging
+  --detach             re-exec detached, print one line, and return at once
+  --dry-run            report every planned action without changing anything
+  --restart            clear the state file and start over
+  --yes, -y            skip the confirmation prompt
+  -h, --help           show this help
+
+EXIT CODES
+  0  merged, pushed, and serving through the Tailscale path
+  2  invalid arguments or a missing precondition
+  3  the checkout could not be merged with origin/master
+  4  the service did not become ready at the requested port
+  5  the merged checkout could not be pushed to the fork
+USAGE_TEXT
+}
 
 # Resolve the repository root from the script's own location.
 repo_root() {
@@ -319,44 +336,85 @@ resolve_target() {
   step_end true
 }
 
-# Update the checkout to the newest origin/master.
+# Merge the newest origin/master into the checkout.
 update_master() {
   if [[ "$DO_PULL" != true ]]; then
-    step_skip "checkout update (--no-pull)"
+    step_skip "merge origin/master (--no-pull)"
     return 0
   fi
-  step_begin "update master"
+  step_begin "merge origin/master"
   cd "$REPO_ROOT"
   local branch
   branch="$(git rev-parse --abbrev-ref HEAD)"
   if [[ "$branch" != "master" ]]; then
     die 3 "on branch '$branch', expected master"
   fi
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    die 3 "a merge is already in progress; finish or abort it first"
+  fi
+  # Uncommitted changes are tolerated: git refuses a merge that would overwrite
+  # them, which is the protection that matters, and they cannot reach the fork
+  # because only committed work is pushed.
+  if [[ -n "$(git status --porcelain)" ]]; then
+    say "  WARN uncommitted changes present; the merge stops if it would overwrite them"
+  fi
   if [[ "$DRY_RUN" == true ]]; then
-    say "  DRY-RUN would fetch origin and fast-forward master"
+    say "  DRY-RUN would fetch origin and merge origin/master"
     OK_COUNT=$((OK_COUNT + 1))
     step_end true
     return 0
   fi
-  local before after behind
+  local before behind
   before="$(git rev-parse HEAD)"
   if ! fetch_with_retry; then
     die 3 "git fetch failed after 3 attempts; see $LOG_FILE"
   fi
   behind="$(git rev-list --count HEAD..origin/master 2>/dev/null || echo 0)"
-  say "  commits behind origin/master: $behind"
   if [[ "$behind" == "0" ]]; then
-    say "  already up to date"
+    say "  already contains origin/master"
   else
-    if ! git pull --ff-only >> "$LOG_FILE" 2>&1; then
-      die 3 "git pull --ff-only failed (diverged or dirty tree); see $LOG_FILE"
+    say "  merging $behind commit(s) from origin/master"
+    if ! git merge --no-edit origin/master >> "$LOG_FILE" 2>&1; then
+      if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+        # Leave no half-finished merge behind: the next run must start clean.
+        git merge --abort >> "$LOG_FILE" 2>&1 || true
+        die 3 "merge with origin/master conflicted; the merge was aborted, resolve it by hand"
+      fi
+      die 3 "git refused the merge, usually because uncommitted changes would be overwritten; see $LOG_FILE"
     fi
-  fi
-  after="$(git rev-parse HEAD)"
-  if [[ "$before" != "$after" ]]; then
-    say "  advanced $before -> $after"
+    say "  advanced $before -> $(git rev-parse HEAD)"
   fi
   say "  head=$(git log --oneline -1)"
+  OK_COUNT=$((OK_COUNT + 1))
+  step_end true
+}
+
+# Push the merged master to the personal fork. The fork's own master stays
+# untouched so it remains usable as a clean base for upstream pull requests.
+push_fork() {
+  if [[ "$DO_PUSH" != true ]]; then
+    step_skip "push to the fork (--no-push)"
+    return 0
+  fi
+  step_begin "push to $PUSH_REMOTE"
+  cd "$REPO_ROOT"
+  if ! git remote get-url "$PUSH_REMOTE" >/dev/null 2>&1; then
+    die 5 "no git remote named '$PUSH_REMOTE'; add it or pass --push-remote"
+  fi
+  say "  target: $PUSH_REMOTE $PUSH_BRANCH"
+  if [[ "$DRY_RUN" == true ]]; then
+    say "  DRY-RUN would push master to $PUSH_REMOTE/$PUSH_BRANCH"
+    OK_COUNT=$((OK_COUNT + 1))
+    step_end true
+    return 0
+  fi
+  # BatchMode and a disabled terminal prompt stop a missing credential from
+  # hanging a detached run; the fork remote authenticates over SSH.
+  if ! GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+       git push "$PUSH_REMOTE" "master:$PUSH_BRANCH" >> "$LOG_FILE" 2>&1; then
+    die 5 "push to $PUSH_REMOTE/$PUSH_BRANCH failed; see $LOG_FILE"
+  fi
+  say "  pushed master -> $PUSH_REMOTE/$PUSH_BRANCH"
   OK_COUNT=$((OK_COUNT + 1))
   step_end true
 }
@@ -502,6 +560,9 @@ parse_args() {
       --mount)   [[ $# -ge 2 ]] || die 2 "--mount needs a value"; MOUNT="$2"; shift 2 ;;
       --host)    [[ $# -ge 2 ]] || die 2 "--host needs a value"; TS_HOST="$2"; shift 2 ;;
       --url)     SHOW_URL=true; shift ;;
+      --push-remote) [[ $# -ge 2 ]] || die 2 "--push-remote needs a value"; PUSH_REMOTE="$2"; shift 2 ;;
+      --push-branch) [[ $# -ge 2 ]] || die 2 "--push-branch needs a value"; PUSH_BRANCH="$2"; shift 2 ;;
+      --no-push) DO_PUSH=false; shift ;;
       --no-pull) DO_PULL=false; shift ;;
       --detach)  DETACH=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
@@ -549,6 +610,10 @@ if [[ "$DETACH" == true ]]; then
   if [[ "$DO_PULL" != true ]]; then
     forward+=(--no-pull)
   fi
+  if [[ "$DO_PUSH" != true ]]; then
+    forward+=(--no-push)
+  fi
+  forward+=(--push-remote "$PUSH_REMOTE" --push-branch "$PUSH_BRANCH")
   nohup "$0" "${forward[@]}" > "$detach_log" 2>&1 < /dev/null &
   disown 2>/dev/null || true
   printf 'restart scheduled; follow %s\n' "$detach_log"
@@ -565,6 +630,7 @@ write_state running "started"
 check_preconditions
 resolve_target
 update_master
+push_fork
 stop_service
 start_service
 await_readiness

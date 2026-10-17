@@ -1,10 +1,10 @@
 ---
 name: update-dsh-master
-description: Use when the user asks to update this checkout's master branch and restart the dsh web service that serves it behind its Tailscale path, or asks for that service's current Tailscale URL after such a restart.
+description: Use when the user asks to update this checkout from official master, push the merged result to their fork, and restart the dsh web service behind its Tailscale path, or asks for that service's current Tailscale URL.
 user-invocable: true
 ---
 
-# Update master and restart dsh web
+# Merge official master, push to the fork, restart dsh web
 
 One bundled script owns this workflow end to end. Run it and report what it prints; do not re-derive the steps by hand.
 
@@ -16,7 +16,11 @@ The command above is relative to the repository root and defaults to port `3180`
 
 ## What it does
 
-Seven logged steps: preconditions, target resolution, checkout update, service stop, service start, readiness wait, verification. It fetches `origin/master` and fast-forwards only (`--ff-only`), so a diverged or dirty checkout fails loudly instead of merging. The restart reuses the same `--trusted-host` and `--public-url` the service needs to answer through the Tailscale path, and it prints `URL <launch url>` on success.
+Eight logged steps: preconditions, target resolution, fetch, merge, push, service stop, service start, readiness wait, verification. It fetches `origin/master` and merges it into the local `master` — a merge rather than a fast-forward, because this checkout carries its own commits on top of upstream. A conflicting merge is aborted and reported rather than left half-finished.
+
+The merged master then goes to `fork/local/dsh-tooling`, deliberately not to the fork's own `master`, so that branch stays identical to upstream and remains a clean base for pull requests. Uncommitted files never block a run: git refuses a merge that would overwrite them, and only committed work reaches the fork.
+
+The restart reuses the same `--trusted-host` and `--public-url` the service needs to answer through the Tailscale path, and it prints `URL <launch url>` on success.
 
 ## Report to the user
 
@@ -39,10 +43,13 @@ A restart mints a new launch token, so a full update invalidates the URL a phone
 | Flag | Effect |
 |---|---|
 | `--url` | print the listening service's launch URL; restarts nothing |
+| `--push-remote <r>` | git remote that receives the merged master (default `fork`) |
+| `--push-branch <b>` | branch on that remote (default `local/dsh-tooling`) |
+| `--no-push` | merge without pushing to the fork |
 | `--port <port>` | port `dsh web` listens on (default 3180) |
 | `--mount <path>` | Tailscale serve path prefix (default `/dsh`) |
 | `--host <name>` | Tailscale DNS name; auto-detected when omitted |
-| `--no-pull` | restart the service without updating the checkout |
+| `--no-pull` | restart the service without merging origin/master |
 | `--dry-run` | report every planned action without changing anything |
 | `--restart` | clear the state file and start over |
 | `--yes` | skip the confirmation prompt |
@@ -51,10 +58,11 @@ Always use `--yes` here: the script prompts only on a TTY, and a non-interactive
 
 ## Diagnose failures
 
-The script exits `2` for bad arguments or missing preconditions, `3` when the checkout cannot be updated on master, and `4` when the service never becomes ready. Every run logs to `~/.dsh/update-dsh-master/logs/`, and the newest run's state sits in `~/.dsh/update-dsh-master/state/update-dsh-master.state.json`.
+The script exits `2` for bad arguments or missing preconditions, `3` when the checkout cannot be merged with origin/master, `4` when the service never becomes ready, and `5` when the merged checkout cannot be pushed to the fork. Every run logs to `~/.dsh/update-dsh-master/logs/`, and the newest run's state sits in `~/.dsh/update-dsh-master/state/update-dsh-master.state.json`.
 
-- Exit `3`: `git fetch` already retried three times with backoff, so a fetch failure here is sustained rather than a transient transport drop; report it from the log. A `git pull` failure is a dirty tree or a diverged master and needs the user's decision, not an automatic merge.
+- Exit `3`: `git fetch` already retried three times with backoff, so a fetch failure here is sustained rather than a transient transport drop; report it from the log. A merge conflict aborts the merge and needs the user's decision, not an automatic resolution. A refusal naming overwritten files means uncommitted work collides with the incoming changes; the user commits or stashes it, and the script never discards it.
 - Exit `4`: read the service log path the script printed. A port still held means the old process ignored `SIGTERM`; a startup crash is usually a plugin that failed to resolve.
+- Exit `5`: the merge landed but the push did not, so the service still runs the previous checkout. Check that the fork remote resolves and that SSH to GitHub works — the fork authenticates over SSH, not HTTPS, and the push runs with prompts disabled so a missing credential fails fast instead of hanging.
 - A `WARN no 'tailscale serve' mapping` line means the mapping is absent, not broken. Report the exact `tailscale serve` command the script suggests rather than running it.
 
 Do not restart anything yourself beyond this script, and do not start a second server on another port: the point of the command is that one known URL keeps working.
