@@ -210,6 +210,24 @@ launch_url() {
   grep -oE 'dsh web: https?://[^[:space:]]+' "$file" 2>/dev/null | tail -1 | sed 's/^dsh web: //' || true
 }
 
+# Fetch with bounded retries: a transient transport failure — an HTTP/2 framing
+# error, a dropped connection — must not fail the whole run, while a pull stays
+# single-attempt because its failures are conflicts the retry cannot resolve.
+fetch_with_retry() {
+  local attempt=1
+  while [[ $attempt -le 3 ]]; do
+    if git fetch --all --prune >> "$LOG_FILE" 2>&1; then
+      return 0
+    fi
+    if [[ $attempt -lt 3 ]]; then
+      say "  git fetch failed (attempt $attempt/3); retrying"
+      sleep "$attempt"
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # steps
 # ---------------------------------------------------------------------------
@@ -279,8 +297,8 @@ update_master() {
   fi
   local before after behind
   before="$(git rev-parse HEAD)"
-  if ! git fetch --all --prune >> "$LOG_FILE" 2>&1; then
-    die 3 "git fetch failed; see $LOG_FILE"
+  if ! fetch_with_retry; then
+    die 3 "git fetch failed after 3 attempts; see $LOG_FILE"
   fi
   behind="$(git rev-list --count HEAD..origin/master 2>/dev/null || echo 0)"
   say "  commits behind origin/master: $behind"
@@ -406,10 +424,11 @@ verify_and_report() {
     say "  WARN no 'tailscale serve' mapping for $MOUNT; run:"
     say "       tailscale serve --bg --https 443 --set-path $MOUNT http://127.0.0.1:$PORT"
   fi
-  # The service prints its launch URL just after it starts listening, so give
-  # the log a bounded moment to carry the line: that URL is the deliverable.
+  # `dsh web` prints its launch URL only after the Loader finishes, so poll the
+  # log for that line rather than guessing a fixed delay. A token-less mount URL
+  # always answers 401, so it is never reported as the result.
   local waited=0
-  while [[ $waited -lt 15 ]]; do
+  while [[ $waited -lt 90 ]]; do
     URL="$(launch_url "$SERVICE_LOG")"
     if [[ -n "$URL" ]]; then
       break
@@ -418,10 +437,12 @@ verify_and_report() {
     waited=$((waited + 1))
   done
   if [[ -z "$URL" ]]; then
-    say "  WARN service log carried no launch URL; falling back to the mount root"
-    URL="https://$TS_HOST$MOUNT/"
+    say "  WARN no launch URL in the service log after ${waited}s"
+    say "       read the 'dsh web:' line from $SERVICE_LOG"
+    say "URL (unavailable; read the service log named above)"
+  else
+    say "URL $URL"
   fi
-  say "URL $URL"
   OK_COUNT=$((OK_COUNT + 1))
   step_end true
 }

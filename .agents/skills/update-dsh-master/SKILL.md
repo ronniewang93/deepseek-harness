@@ -22,6 +22,8 @@ Seven logged steps: preconditions, target resolution, checkout update, service s
 
 Quote the `URL <launch url>` line verbatim. It carries the process credential that admits the browser session, so it is the deliverable of this skill. Include whether the checkout actually advanced and which commit it now sits on.
 
+If that line reports the URL as unavailable, the service is running but its launch URL could not be read from the log. Report the service log path the script named instead of assembling a URL from the mount root: a token-less URL always answers 401.
+
 ## Options
 
 | Flag | Effect |
@@ -40,7 +42,7 @@ Always use `--yes` here: the script prompts only on a TTY, and a non-interactive
 
 The script exits `2` for bad arguments or missing preconditions, `3` when the checkout cannot be updated on master, and `4` when the service never becomes ready. Every run logs to `~/.dsh/update-dsh-master/logs/`, and the newest run's state sits in `~/.dsh/update-dsh-master/state/update-dsh-master.state.json`.
 
-- Exit `3`: report the `git fetch` or `git pull` failure from the log; a dirty tree or a diverged master needs the user's decision, not an automatic merge.
+- Exit `3`: `git fetch` already retried three times with backoff, so a fetch failure here is sustained rather than a transient transport drop; report it from the log. A `git pull` failure is a dirty tree or a diverged master and needs the user's decision, not an automatic merge.
 - Exit `4`: read the service log path the script printed. A port still held means the old process ignored `SIGTERM`; a startup crash is usually a plugin that failed to resolve.
 - A `WARN no 'tailscale serve' mapping` line means the mapping is absent, not broken. Report the exact `tailscale serve` command the script suggests rather than running it.
 
